@@ -4,3 +4,6 @@ node_modules
 *.swo
 .DS_Store
 package-lock.json
+list.csv
+list_test.csv
+failed.csv
