@@ -55,7 +55,7 @@ async function sendNotification(chunk) {
     }
   });
 
-  console.log('Batch sent: ', batch_count);
+  console.log(`Batch ${batch_count} with ${chunk.length} numbers sent.`);
   return true;
 }
 
