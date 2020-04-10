@@ -1,0 +1,14 @@
+{
+  "name": "MassNotifySMS",
+  "version": "0.0.1",
+  "author": "Nick Khurana",
+  "private": true,
+  "dependencies": {
+    "twilio": "3.40.0",
+    "papaparse": "5.2.0"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=0.8"
+  }
+}
