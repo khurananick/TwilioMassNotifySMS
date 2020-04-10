@@ -13,9 +13,11 @@ Use this app to send mass SMS message to numbers from a csv. Before using this l
 ## Setup
 **Step 1:** Clone this repo to your local.
 
-**Step 2:** Copy `config.js.tmp` to `config.js` and add your Twilio account credentials.
+**Step 2:** Copy `config.js.tmp` to `config.js`
 
-**Step 3:** Run `npm install` to download required libs.
+**Step 3:** Add your Twilio account credentials and the mesage to send in `config.js`.
+
+**Step 4:** Run `npm install` to download required libs.
 
 ## Throttling
 In `config.js` you can set `MAX_CHUNK_SIZE`, which is the number of receipients to message per chunk. Each bach takes at least 1 second.

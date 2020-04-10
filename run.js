@@ -44,7 +44,7 @@ async function sendNotification(chunks) {
 
   let confirmation = await client.notify.services(NOTIFY_SERVICE_SID).notifications.create({
     toBinding: bindings,
-    body: "Here's a note for you!!"
+    body: ENV.MSG_BODY
   })
   .catch(function(err) {
     let lines = [];
