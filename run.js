@@ -53,8 +53,19 @@ async function sendNotification(chunks) {
   });
 }
 
+// ensures at least 1 second has passed between startTime and endTime
+function sleep(startTime, endTime) {
+  let lapse = endTime - startTime;
+  if(lapse > 1000) return;
+  let ms = 1000 - lapse;
+  var start = new Date().getTime(), expire = start + ms;
+  while (new Date().getTime() < expire) { }
+  return;
+}
+
 // read from file and start processing messages.
 let chunks = [];
+let timeLapse = new Date().getTime();
 Papa.parse(file, {
   header: true,
   worker: true,
@@ -62,12 +73,15 @@ Papa.parse(file, {
     parser.pause();
     chunks.push(row.data);
     if(chunks.length == Number(ENV.MAX_CHUNK_SIZE)) {
+      sleep(timeLapse, new Date().getTime());
       await sendNotification(chunks);
       chunks = [];
+      timeLapse = new Date().getTime();
     }
     parser.resume();
   },
   complete: async function(row) {
+    sleep(timeLapse, new Date().getTime());
     await sendNotification(chunks);
     chunks = [];
   }
