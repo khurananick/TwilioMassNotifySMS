@@ -33,9 +33,11 @@ const filepath = (MODE=="--prod" ? prod_filepath:test_filepath);
 const file = fs.readFileSync(filepath, 'utf8')
 
 // callback function when chunks are available to send notifications.
+let batch_count = 0;
 async function sendNotification(chunks) {
   if(chunks.length < 1) return;
 
+  batch_count++;
   let bindings = [];
   for(let row of chunks)
     bindings.push(JSON.stringify({ binding_type: "sms", address: row.Numbers }));
@@ -49,8 +51,12 @@ async function sendNotification(chunks) {
     for(let item of bindings) {
       let binding = JSON.parse(item);
       fs.appendFileSync(failed_filepath, `\r\n${binding.address},Failed`);
+      console.log('Batch failed: ', batch_count);
     }
   });
+
+  console.log('Batch sent: ', batch_count);
+  return true;
 }
 
 // ensures at least 1 second has passed between startTime and endTime
