@@ -16,7 +16,7 @@ const REQUIRED = [
 const ENV = require('./config.js').Env;
 for(let KEY of REQUIRED)
   if(!ENV[KEY])
-    return console.log('Your secret.js file is missing ', KEY);
+    return console.log('Your config.js file is missing ', KEY);
 const MAX_CHUNK_SIZE = Number(ENV.MAX_CHUNK_SIZE) || 1;
 
 // load required libs
