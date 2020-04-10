@@ -17,7 +17,7 @@ Use this app to send mass SMS message to numbers from a csv. Before using this l
 
 **Step 3:** Run `npm install` to download required libs.
 
-## Setup
+## Throttling
 In `config.js` you can set `MAX_CHUNK_SIZE`, which is the number of receipients to message per chunk. Each bach takes at least 1 second.
 
 **For Example**: If you want to send 150 messages per second, set MAX_CHUNK_SIZE to 150. This does not guarantee that 150 messages will be sent per second, it just sets 150 as max to be sent per second.
