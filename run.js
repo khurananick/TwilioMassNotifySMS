@@ -24,23 +24,23 @@ const fs            = require('fs')
 const Papa          = require("papaparse");
 const client = require('twilio')(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
 
-// set up files.
+// read/set up numbers files.
 const failed_filepath = './failed.csv';
+fs.writeFileSync(failed_filepath,'Numbers,Status',{encoding:'utf8',flag:'w'});
 const prod_filepath = "./list.csv";
 const test_filepath = "./list_test.csv";
-fs.writeFileSync(failed_filepath,'Numbers,Status',{encoding:'utf8',flag:'w'});
 const filepath = (MODE=="--prod" ? prod_filepath:test_filepath);
 const file = fs.readFileSync(filepath, 'utf8')
 
-// callback function when chunks are available to send notifications.
+// callback function when a chunk of numbers is available to send notifications to.
 let batch_count = 0;
-async function sendNotification(chunks) {
-  if(chunks.length < 1) return;
+async function sendNotification(chunk) {
+  if(chunk.length < 1) return;
 
   batch_count++;
   let bindings = [];
-  for(let row of chunks)
-    bindings.push(JSON.stringify({ binding_type: "sms", address: row.Numbers }));
+  for(let number of chunk)
+    bindings.push(JSON.stringify({ binding_type: "sms", address: number }));
 
   let confirmation = await client.notify.services(NOTIFY_SERVICE_SID).notifications.create({
     toBinding: bindings,
@@ -69,26 +69,51 @@ function sleep(startTime, endTime) {
   return;
 }
 
-// read from file and start processing messages.
-let chunks = [];
+// ensures row has a data hash with Numbers key
+// row={data:{Numbers:"<num>"}}
+function confirmHeader(row) {
+  if(!row.data.Numbers) {
+    console.log(`ERROR:: ${filepath} does not have a Numbers header`);
+    process.exit(1);
+  }
+}
+
+let headerConfirmed = false;
+let chunk = [];
 let timeLapse = new Date().getTime();
+// read from file and start processing messages.
 Papa.parse(file, {
   header: true,
   worker: true,
   step: async function(row, parser) {
+    // don't go to next line until we've processed this line.
     parser.pause();
-    chunks.push(row.data);
-    if(chunks.length == Number(ENV.MAX_CHUNK_SIZE)) {
+    // ensure header is correct on first line only.
+    if(!headerConfirmed) {
+      confirmHeader(row);
+      headerConfirmed = true;
+    }
+    // push number from line into chunk.
+    chunk.push(row.data.Numbers);
+    // if chunk length has reached max chunk size,
+    // ensure at least 1 second has passed since sending previous chunk
+    // and then send message to this chunk of numbers.
+    if(chunk.length == Number(ENV.MAX_CHUNK_SIZE)) {
       sleep(timeLapse, new Date().getTime());
-      await sendNotification(chunks);
-      chunks = [];
+      await sendNotification(chunk);
+      chunk = [];
       timeLapse = new Date().getTime();
     }
+    // go to next line in csv.
     parser.resume();
   },
   complete: async function(row) {
+    // if file has completed processing,
+    // send message to remaining chunk of numbers.
+    if(chunk.length < 1) return;
     sleep(timeLapse, new Date().getTime());
-    await sendNotification(chunks);
-    chunks = [];
+    await sendNotification(chunk);
+    console.log(`Finished sending notifications.`);
+    process.exit(0);
   }
 });
