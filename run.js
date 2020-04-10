@@ -6,7 +6,7 @@ if(MODE != '--prod' && MODE != '--test')
 // check if notify service sid is provided.
 const NOTIFY_SERVICE_SID = process.argv[3];
 if(!NOTIFY_SERVICE_SID)
-  return console.log("Please pass in the notify service SID. ex. `node twilio-notify.js --test {NOTIFY_SERVICE_SID}`");
+  return console.log("Please pass in the notify service SID. ex. `node run.js --test {NOTIFY_SERVICE_SID}`");
 
 // ensure all required config information is available
 const REQUIRED = [
