@@ -1,29 +1,54 @@
+/*
+ *  First few anon functions to just verify setup is correct.
+ */
 // check for prod or test mode.
-const MODE = process.argv[2];
-if(MODE != '--prod' && MODE != '--test')
-  return console.log("Please provide either --test or --prod flag into your command.");
+const MODE = (function() {
+  let mode = process.argv[2];
+  if(mode != '--prod' && mode != '--test') {
+    console.log("Please provide either --test or --prod flag into your command. ex. `node run.js --test {NOTIFY_SERVICE_SID}`");
+    process.exit(1);
+  }
+  return mode;
+})();
 
 // check if notify service sid is provided.
-const NOTIFY_SERVICE_SID = process.argv[3];
-if(!NOTIFY_SERVICE_SID)
-  return console.log("Please pass in the notify service SID. ex. `node run.js --test {NOTIFY_SERVICE_SID}`");
+const NOTIFY_SERVICE_SID = (function() {
+  let sid = process.argv[3];
+  if(!sid) {
+    console.log("Please pass in the notify service SID. ex. `node run.js --test {NOTIFY_SERVICE_SID}`");
+    process.exit(1);
+  }
+  return sid;
+})();
 
 // ensure all required config information is available
-const REQUIRED = [
-  "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
-  "MAX_CHUNK_SIZE", "MSG_BODY"
-];
-const ENV = require('./config.js').Env;
-for(let KEY of REQUIRED)
-  if(!ENV[KEY])
-    return console.log('Your config.js file is missing ', KEY);
-const MAX_CHUNK_SIZE = Number(ENV.MAX_CHUNK_SIZE) || 1;
+const ENV = (function() {
+  let required = [
+    "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
+    "MAX_BATCH_SIZE", "MSG_BODY"
+  ];
+  let env = require('./config.js').Env;
+  for(let key of required) {
+    if(!env[key]) {
+      console.log('Your config.js file is missing ', key);
+      process.exit(1);
+    }
+  }
+  return env;
+})();
+const MAX_BATCH_SIZE = Number(ENV.MAX_BATCH_SIZE) || 1;
 
+/*
+ * Loading the required libs.
+ */
 // load required libs
 const fs            = require('fs')
 const Papa          = require("papaparse");
 const client = require('twilio')(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
 
+/*
+ * Ensuring the necessary file(s) exist.
+ */
 // read/set up numbers files.
 const failed_filepath = './failed.csv';
 fs.writeFileSync(failed_filepath,'Numbers,Status',{encoding:'utf8',flag:'w'});
@@ -32,33 +57,9 @@ const test_filepath = "./list_test.csv";
 const filepath = (MODE=="--prod" ? prod_filepath:test_filepath);
 const file = fs.readFileSync(filepath, 'utf8')
 
-// callback function when a chunk of numbers is available to send notifications to.
-let batch_count = 0;
-async function sendNotification(chunk) {
-  if(chunk.length < 1) return;
-
-  batch_count++;
-  let bindings = [];
-  for(let number of chunk)
-    bindings.push(JSON.stringify({ binding_type: "sms", address: number }));
-
-  let confirmation = await client.notify.services(NOTIFY_SERVICE_SID).notifications.create({
-    toBinding: bindings,
-    body: ENV.MSG_BODY
-  })
-  .catch(function(err) {
-    let lines = [];
-    for(let item of bindings) {
-      let binding = JSON.parse(item);
-      fs.appendFileSync(failed_filepath, `\r\n${binding.address},Failed`);
-      console.log('Batch failed: ', batch_count);
-    }
-  });
-
-  console.log(`Batch ${batch_count} with ${chunk.length} numbers sent.`);
-  return true;
-}
-
+/*
+ * Few helper functions.
+ */
 // ensures at least 1 second has passed between startTime and endTime
 function sleep(startTime, endTime) {
   let lapse = endTime - startTime;
@@ -78,42 +79,71 @@ function confirmHeader(row) {
   }
 }
 
-let headerConfirmed = false;
-let chunk = [];
-let timeLapse = new Date().getTime();
-// read from file and start processing messages.
-Papa.parse(file, {
-  header: true,
-  worker: true,
-  step: async function(row, parser) {
-    // don't go to next line until we've processed this line.
-    parser.pause();
-    // ensure header is correct on first line only.
-    if(!headerConfirmed) {
-      confirmHeader(row);
-      headerConfirmed = true;
+/*
+ * Main functions that step through the CSV and send out the message in batches.
+ */
+// callback function when a batch of numbers is available to send notifications to.
+let batch_count = 0;
+async function sendNotification(batch) {
+  if(batch.length < 1) return;
+
+  batch_count++;
+  let bindings = [];
+  for(let number of batch)
+    bindings.push(JSON.stringify({ binding_type: "sms", address: number }));
+
+  let confirmation = await client.notify.services(NOTIFY_SERVICE_SID).notifications.create({
+    toBinding: bindings,
+    body: ENV.MSG_BODY
+  })
+  .catch(function(err) {
+    let lines = [];
+    for(let item of bindings) {
+      let binding = JSON.parse(item);
+      fs.appendFileSync(failed_filepath, `\r\n${binding.address},Failed`);
+      console.log('Batch failed: ', batch_count);
     }
-    // push number from line into chunk.
-    chunk.push(row.data.Numbers);
-    // if chunk length has reached max chunk size,
-    // ensure at least 1 second has passed since sending previous chunk
-    // and then send message to this chunk of numbers.
-    if(chunk.length == Number(ENV.MAX_CHUNK_SIZE)) {
+  });
+
+  console.log(`Batch ${batch_count} with ${batch.length} numbers sent.`);
+  return true;
+}
+
+(function init() {
+  let headerConfirmed = false;
+  let batch = [];
+  let timeLapse = new Date().getTime();
+  Papa.parse(file, { // read from file and start processing messages.
+    header: true,
+    worker: true,
+    step: async function(row, parser) {
+      parser.pause(); // don't go to next line until we've processed this line.
+      // ensure header is correct on first line only.
+      if(!headerConfirmed) {
+        confirmHeader(row);
+        headerConfirmed = true;
+      }
+      batch.push(row.data.Numbers); // push number from line into batch.
+      // if batch length has reached max batch size,
+      // ensure at least 1 second has passed since sending previous batch
+      // and then send message to this batch of numbers.
+      if(batch.length == Number(ENV.MAX_BATCH_SIZE)) {
+        sleep(timeLapse, new Date().getTime());
+        await sendNotification(batch);
+        batch = [];
+        timeLapse = new Date().getTime();
+      }
+      // go to next line in csv.
+      parser.resume();
+    },
+    complete: async function(row) {
+      // if file has completed processing,
+      // send message to remaining batch of numbers.
+      if(batch.length < 1) return;
       sleep(timeLapse, new Date().getTime());
-      await sendNotification(chunk);
-      chunk = [];
-      timeLapse = new Date().getTime();
+      await sendNotification(batch);
+      console.log(`Finished sending notifications.`);
+      process.exit(0);
     }
-    // go to next line in csv.
-    parser.resume();
-  },
-  complete: async function(row) {
-    // if file has completed processing,
-    // send message to remaining chunk of numbers.
-    if(chunk.length < 1) return;
-    sleep(timeLapse, new Date().getTime());
-    await sendNotification(chunk);
-    console.log(`Finished sending notifications.`);
-    process.exit(0);
-  }
-});
+  });
+})();
