@@ -52,6 +52,8 @@ const client = require('twilio')(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
 // read/set up numbers files.
 const failed_filepath = './failed.csv';
 fs.writeFileSync(failed_filepath,'Numbers,Status',{encoding:'utf8',flag:'w'});
+const success_filepath = './success.csv';
+fs.writeFileSync(success_filepath,'Numbers',{encoding:'utf8',flag:'w'});
 const prod_filepath = "./list.csv";
 const test_filepath = "./list_test.csv";
 const filepath = (MODE=="--prod" ? prod_filepath:test_filepath);
@@ -104,6 +106,9 @@ async function sendNotification(batch) {
       console.log('Batch failed: ', batch_count);
     }
   });
+
+  for(let number of batch)
+    fs.appendFileSync(success_filepath, `\r\n${number}`);
 
   console.log(`Batch ${batch_count} with ${batch.length} numbers sent.`);
   return true;

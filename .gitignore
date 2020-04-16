@@ -7,3 +7,4 @@ package-lock.json
 list.csv
 list_test.csv
 failed.csv
+success.csv
