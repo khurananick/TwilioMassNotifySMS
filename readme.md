@@ -1,3 +1,7 @@
+**Please note this is not an official Twilio supported application.** 
+**You may use this application at your own risk.** 
+**This application does not come with any warranties.**
+
 ## Intro
 Use this app to send mass SMS message to numbers from a csv. Before using this app, ensure that you have:
 
