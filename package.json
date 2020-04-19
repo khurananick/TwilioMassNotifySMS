@@ -5,7 +5,8 @@
   "private": true,
   "dependencies": {
     "twilio": "3.40.0",
-    "papaparse": "5.2.0"
+    "papaparse": "5.2.0",
+    "colors": "1.4.0"
   },
   "license": "MIT",
   "engines": {

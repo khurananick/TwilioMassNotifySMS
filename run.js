@@ -44,7 +44,8 @@ const MAX_BATCH_SIZE = Number(ENV.MAX_BATCH_SIZE) || 1;
 // load required libs
 const fs            = require('fs')
 const Papa          = require("papaparse");
-const client = require('twilio')(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+const client        = require('twilio')(ENV.TWILIO_ACCOUNT_SID, ENV.TWILIO_AUTH_TOKEN);
+const colors        = require('colors');
 
 /*
  * Ensuring the necessary file(s) exist.
@@ -84,12 +85,15 @@ function confirmHeader(row) {
 /*
  * Main functions that step through the CSV and send out the message in batches.
  */
+let success_count = fail_count = invalid_count = batch_count = headerConfirmed = 0;
+let batch = [];
+let timeLapse = new Date().getTime();
+
 // callback function when a batch of numbers is available to send notifications to.
-let batch_count = 0;
 async function sendNotification(batch) {
   if(batch.length < 1) return;
+  batch_count += 1;
 
-  batch_count++;
   let bindings = [];
   for(let number of batch)
     bindings.push(JSON.stringify({ binding_type: "sms", address: number }));
@@ -103,58 +107,69 @@ async function sendNotification(batch) {
     for(let item of bindings) {
       let binding = JSON.parse(item);
       fs.appendFileSync(failed_filepath, `\r\n${binding.address},Failed`);
+      fail_count += 1;
       console.log('Batch failed: ', batch_count);
     }
   });
 
   if(confirmation) {
+    success_count += batch.length;
     for(let number of batch)
-      fs.appendFileSync(success_filepath, `\r\n${number}`);
+      await fs.appendFileSync(success_filepath, `\r\n${number}`);
     console.log(`Batch ${batch_count} with ${batch.length} numbers sent.`);
     return true;
   }
 }
 
+// callback function when each new row is read
+const processRow = async function(row, parser) {
+  parser.pause(); // don't go to next line until we've processed this line.
+  // ensure header is correct on first line only.
+  if(!headerConfirmed) {
+    confirmHeader(row);
+    headerConfirmed = true;
+  }
+  // validate number is correct
+  if(!row.data.Numbers.match(/\++[0-9]+$/)) {
+    fs.appendFileSync(failed_filepath, `\r\n${row.data.Numbers},Invalid`);
+    invalid_count += 1;
+    return parser.resume();
+  }
+  batch.push(row.data.Numbers); // push number from line into batch.
+  // if batch length has reached max batch size,
+  // ensure at least 1 second has passed since sending previous batch
+  // and then send message to this batch of numbers.
+  if(batch.length == Number(ENV.MAX_BATCH_SIZE)) {
+    sleep(timeLapse, new Date().getTime());
+    await sendNotification(batch);
+    batch = [];
+    timeLapse = new Date().getTime();
+  }
+  // go to next line in csv.
+  parser.resume();
+};
+
+// callback function when last row is read
+const processFinalRow = async function(row, parser) {
+  // if file has completed processing,
+  // send message to remaining batch of numbers.
+  if(batch.length < 1) return;
+  sleep(timeLapse, new Date().getTime());
+  await sendNotification(batch);
+  if(success_count)
+    console.log(`Successfully sent notifications: ${success_count}`);
+  if(fail_count)
+    console.log(colors.red(`Failed sending notifications: ${fail_count}. Check failed.csv.`));
+  if(invalid_count)
+    console.log(colors.red(`Invalid numbers found: ${invalid_count}. Check failed.csv.`));
+  process.exit(0);
+};
+
 (function init() {
-  let headerConfirmed = false;
-  let batch = [];
-  let timeLapse = new Date().getTime();
   Papa.parse(file, { // read from file and start processing messages.
     header: true,
     worker: true,
-    step: async function(row, parser) {
-      parser.pause(); // don't go to next line until we've processed this line.
-      // ensure header is correct on first line only.
-      if(!headerConfirmed) {
-        confirmHeader(row);
-        headerConfirmed = true;
-      }
-      // validate number is correct
-      if(!row.data.Numbers.match(/\++[0-9]+$/)) {
-        fs.appendFileSync(failed_filepath, `\r\n${row.data.Numbers},Invalid`);
-        return parser.resume();
-      }
-      batch.push(row.data.Numbers); // push number from line into batch.
-      // if batch length has reached max batch size,
-      // ensure at least 1 second has passed since sending previous batch
-      // and then send message to this batch of numbers.
-      if(batch.length == Number(ENV.MAX_BATCH_SIZE)) {
-        sleep(timeLapse, new Date().getTime());
-        await sendNotification(batch);
-        batch = [];
-        timeLapse = new Date().getTime();
-      }
-      // go to next line in csv.
-      parser.resume();
-    },
-    complete: async function(row) {
-      // if file has completed processing,
-      // send message to remaining batch of numbers.
-      if(batch.length < 1) return;
-      sleep(timeLapse, new Date().getTime());
-      await sendNotification(batch);
-      console.log(`Finished sending notifications.`);
-      process.exit(0);
-    }
+    step: processRow,
+    complete: processFinalRow
   });
 })();
