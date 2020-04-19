@@ -107,11 +107,12 @@ async function sendNotification(batch) {
     }
   });
 
-  for(let number of batch)
-    fs.appendFileSync(success_filepath, `\r\n${number}`);
-
-  console.log(`Batch ${batch_count} with ${batch.length} numbers sent.`);
-  return true;
+  if(confirmation) {
+    for(let number of batch)
+      fs.appendFileSync(success_filepath, `\r\n${number}`);
+    console.log(`Batch ${batch_count} with ${batch.length} numbers sent.`);
+    return true;
+  }
 }
 
 (function init() {
