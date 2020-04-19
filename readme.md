@@ -47,3 +47,7 @@ Update `list.txt` with the appropriate contacts and headers. Then run:
 
 This method will send your SMS to all the numbers in `test.txt`
 
+## Recovering Failed Jobs
+
+If the job fails at some point in the middle of sending your SMS, you can see your successfully sent and failed SMS in `success.csv` and `failed.csv`. Make a copy of those files, remove those numbers from our `list.csv` and start the job again.
+

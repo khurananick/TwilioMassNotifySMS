@@ -129,13 +129,11 @@ async function sendNotification(batch) {
         confirmHeader(row);
         headerConfirmed = true;
       }
-
       // validate number is correct
       if(!row.data.Numbers.match(/\++[0-9]+$/)) {
         fs.appendFileSync(failed_filepath, `\r\n${row.data.Numbers},Invalid`);
         return parser.resume();
       }
-
       batch.push(row.data.Numbers); // push number from line into batch.
       // if batch length has reached max batch size,
       // ensure at least 1 second has passed since sending previous batch
