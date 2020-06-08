@@ -2,7 +2,7 @@ module.exports = {
   Env: {
     "TWILIO_ACCOUNT_SID": "<YOUR_TWILIO_ACCOUNT_SID>",
     "TWILIO_AUTH_TOKEN":  "<YOUR_TWILIO_AUTH_TOKEN>",
-    "MAX_CHUNK_SIZE":     "2",
+    "MAX_BATCH_SIZE":     "2",
     "MSG_BODY":           "Here is the message I want to send."
   }
 };
